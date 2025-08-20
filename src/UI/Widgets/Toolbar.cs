@@ -1,6 +1,10 @@
 ﻿using Gwen;
 using Gwen.Controls;
 using linerider.Tools;
+using linerider.IO;
+using linerider.Utils;
+using linerider.Audio;
+using System.IO;
 using linerider.UI.Components;
 using System;
 
@@ -132,6 +136,7 @@ namespace linerider.UI.Widgets
             AddDivider();
             _ = AddMenuItem("Export Video", () => _canvas.ShowExportVideoWindow());
             _ = AddMenuItem("Capture Screen", () => _canvas.ShowScreenCaptureWindow());
+            _ = AddMenuItem("Export Rider Data (JSON)", () => ExportRiderDataJson());
         }
         private void AddDivider() => _menu.AddDivider();
         private MenuItem AddMenuItem(string caption, Action action) => AddMenuItem(caption, Hotkey.None, action);
@@ -211,6 +216,38 @@ namespace linerider.UI.Widgets
             }
 
             base.Think();
+        }
+
+        private void ExportRiderDataJson()
+        {
+            if (!_editor.HasFlag && !Settings.LockTrackDuration)
+            {
+                _canvas.ShowError("No flag detected. Place one at the end of the track or enable 'Lock Track Duration' in Preferences.");
+                return;
+            }
+
+            try
+            {
+                int frames = Settings.LockTrackDuration ? _canvas.TrackDuration : _editor.Flag.Moment.Frame;
+                frames = System.Math.Max(0, frames) + 1; // include last frame
+
+                string dirPath = Path.Combine(Settings.Local.UserDirPath, Constants.RendersFolderName);
+                if (!Directory.Exists(dirPath))
+                {
+                    _ = Directory.CreateDirectory(dirPath);
+                }
+
+                string date = System.DateTime.UtcNow.ToString("yyyy-MM-dd hh.mm.ss");
+                string safeName = _editor.Name == Constants.InternalDefaultTrackName ? Constants.DefaultTrackName : _editor.Name;
+                string filePath = Path.Combine(dirPath, $"{safeName} {date}.rider.json");
+
+                TrackIO.ExportTrackData(_editor.GetTrack(), filePath, frames, _editor.Camera);
+                AudioService.Beep();
+            }
+            catch (System.Exception e)
+            {
+                _canvas.ShowError("Export failed:\n" + e.Message);
+            }
         }
     }
 }
